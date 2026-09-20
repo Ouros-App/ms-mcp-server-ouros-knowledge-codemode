@@ -33,6 +33,9 @@ MIDAS_DATABASE_URL=postgresql://midas_ro:senha@host-neon/segundo_prod?sslmode=re
 MIDAS_DB_CONNECT_TIMEOUT=10
 MCP_AUTH_TOKEN=gere-um-token-secreto-com-pelo-menos-32-caracteres
 MCP_RESOURCE_URL=http://localhost:8000/mcp
+MCP_JWT_ISSUER=https://ouros-keycloak.discloud.app/realms/ouros
+MCP_JWT_AUDIENCE=ms-mcp-server-ouros-knowledge-codemode
+MCP_JWKS_URL=https://ouros-keycloak.discloud.app/realms/ouros/protocol/openid-connect/certs
 ```
 
 O mesmo modelo de embedding precisa ter sido usado para gravar os vetores na coleção Qdrant. A coleção também precisa existir antes da busca; a ferramenta `qdrant_status` mostra essa condição sem chamar a NVIDIA.
