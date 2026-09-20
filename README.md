@@ -33,6 +33,9 @@ MIDAS_DATABASE_URL=postgresql://midas_ro:senha@host-neon/segundo_prod?sslmode=re
 MIDAS_DB_CONNECT_TIMEOUT=10
 MCP_AUTH_TOKEN=gere-um-token-secreto-com-pelo-menos-32-caracteres
 MCP_RESOURCE_URL=http://localhost:8000/mcp
+MCP_JWT_ISSUER=https://ouros-keycloak.discloud.app/realms/ouros
+MCP_JWT_AUDIENCE=ms-mcp-server-ouros-knowledge-codemode
+MCP_JWKS_URL=https://ouros-keycloak.discloud.app/realms/ouros/protocol/openid-connect/certs
 ```
 
 O mesmo modelo de embedding precisa ter sido usado para gravar os vetores na coleção Qdrant. A coleção também precisa existir antes da busca; a ferramenta `qdrant_status` mostra essa condição sem chamar a NVIDIA.
@@ -41,7 +44,7 @@ No deployment público, sobrescreva `MCP_RESOURCE_URL` com `https://ms-midas-mcp
 
 `MIDAS_DATABASE_URL` deve usar a role `midas_ro` criada pela migration. A role acessa as views do schema `midas`, sem as colunas de senha, e não recebe uma ferramenta de SQL arbitrário. A senha real deve ficar somente no `.env`/secret manager.
 
-O endpoint MCP exige o token fixo de `MCP_AUTH_TOKEN` no header `Authorization: Bearer <token>`. Use um valor aleatório com pelo menos 32 caracteres e mantenha-o somente no `.env`/secret manager. A identidade MIDAS (`user_type` e `user_id`) é enviada em cada chamada das tools e validada pelo servidor.
+O endpoint MCP aceita access tokens do Keycloak no header `Authorization: Bearer <token>`. `MCP_AUTH_TOKEN` permanece apenas como fallback legado durante o rollout. Use um valor aleatório com pelo menos 32 caracteres e mantenha-o somente no `.env`/secret manager. Nos tokens oficiais, a identidade MIDAS vem dos claims assinados `account_type` e `database_id`. Os argumentos `user_type` e `user_id` precisam corresponder aos claims do JWT.
 
 ## Execução local
 
@@ -169,3 +172,8 @@ MIT. Consulte [LICENSE](LICENSE).
 - [@Andre-Roger](https://github.com/Andre-Roger) — 1 contribuição
 - [@juwata](https://github.com/juwata) — 1 contribuição
 <!-- CONTRIBUTORS:END -->
+
+
+## Keycloak JWT
+
+Este serviço é um resource server separado do MCP principal e valida tokens com audience `ms-mcp-server-ouros-knowledge-codemode`. A assinatura RS256 é validada pelo JWKS do realm `ouros`, junto de issuer, audience, expiração e identidade de negócio. O token estático continua somente como compatibilidade temporária de rollout.
