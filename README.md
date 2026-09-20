@@ -13,7 +13,7 @@ Servidor FastAPI com transporte MCP via Streamable HTTP para consultar uma cole�
 - Ferramenta MCP `search_knowledge(query, limit)` para busca semântica.
 - Ferramenta MCP `qdrant_status()` para verificar a coleção configurada.
 - Ferramenta MCP `postgres_status()` para verificar a conexão somente leitura do MIDAS.
-- Ferramentas MCP `get_user_context()` e `get_user_farm_data(user_type, user_id, limit)` para contexto personalizado por usuário.
+- Ferramentas MCP `get_user_context()` e `get_user_farm_data(limit)` para contexto personalizado por usuário.
 - CLI `ingest` para extrair, dividir, embeddar e enviar arquivos ao Qdrant.
 - `QdrantVectorStore` e `NVIDIAEmbeddings` da stack LangChain.
 - `.env` local ignorado pelo Git e `.env.example` como modelo de configuração.
@@ -146,7 +146,7 @@ app/
 ├── core/config.py         # configuração carregada do .env
 ├── cli.py                 # ingestão incremental a partir de ./docs
 ├── mcp_server.py          # ferramentas MCP e transporte HTTP
-├── services/auth.py       # validação do token fixo e identidade do usuário
+├── services/auth.py       # validação do JWT Keycloak e identidade assinada do usuário
 ├── services/database.py   # conexão read-only e contexto por usuário
 ├── services/knowledge.py  # Qdrant + NVIDIA embeddings
 └── main.py                # aplicação FastAPI e montagem do MCP
