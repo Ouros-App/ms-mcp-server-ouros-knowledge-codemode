@@ -28,7 +28,7 @@ mcp = FastMCP(
     json_response=True,
     streamable_http_path="/",
     auth=AuthSettings(
-        issuer_url=settings.MCP_JWT_ISSUER,
+        issuer_url=settings.MCP_JWT_ISSUER or settings.MCP_RESOURCE_URL,
         resource_server_url=settings.MCP_RESOURCE_URL,
     ),
     token_verifier=KeycloakOrStaticTokenVerifier(),
