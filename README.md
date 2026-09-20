@@ -120,7 +120,7 @@ Tools disponíveis:
 - `get_user_context()`: retorna perfil, empresas e farms do usuário.
 - `get_user_farm_data(limit=20)`: retorna farms, metas, consumos, lotes e dicas; `limit` entre 1 e 100.
 
-Os valores aceitos para `user_type` são `farm_owner`, `company_employee` e `admin`. Exemplos de argumentos para um cliente MCP:
+O `account_type` aceito continua sendo `farm_owner`, `company_employee` ou `admin`, mas esse valor vem exclusivamente do JWT assinado e não é argumento das tools. Exemplos de argumentos para um cliente MCP:
 
 ```json
 {
