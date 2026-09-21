@@ -1,9 +1,12 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
+
+from jwt.exceptions import PyJWKClientError
 
 from app.core.config import settings
 from app.services.auth import (
+    AuthenticationKeyServiceError,
     KeycloakTokenVerifier,
     _decode_keycloak_token,
     _identity_from_claims,
@@ -29,23 +32,51 @@ class AuthTests(unittest.IsolatedAsyncioTestCase):
             )
 
     def test_decode_keycloak_token_uses_rs256_contract(self) -> None:
+        signing_key = SimpleNamespace(key="public-key", key_id="kid-1")
         jwks_client = Mock()
-        jwks_client.get_jwk_set.return_value = object()
-        jwks_client.get_signing_key_from_jwt.return_value = SimpleNamespace(
-            key="public-key"
-        )
+        jwks_client.get_signing_keys.return_value = [signing_key]
         claims = {"sub": "subject"}
+
         with (
+            patch.object(settings, "MCP_JWKS_URL", "https://keys.example/jwks"),
             patch.object(settings, "MCP_JWT_ISSUER", "https://issuer.example"),
             patch.object(settings, "MCP_JWT_AUDIENCE", "codemode-audience"),
             patch("app.services.auth._get_jwks_client", return_value=jwks_client),
+            patch("app.services.auth.get_unverified_header", return_value={"kid": "kid-1"}),
             patch("app.services.auth.decode", return_value=claims) as decoder,
         ):
             self.assertEqual(_decode_keycloak_token("signed-token"), claims)
 
+        jwks_client.get_signing_keys.assert_called_once_with(refresh=False)
         self.assertEqual(decoder.call_args.kwargs["algorithms"], ["RS256"])
         self.assertEqual(decoder.call_args.kwargs["issuer"], "https://issuer.example")
         self.assertEqual(decoder.call_args.kwargs["audience"], "codemode-audience")
+
+    def test_unknown_kid_is_invalid_token_not_jwks_outage(self) -> None:
+        jwks_client = Mock()
+        jwks_client.get_signing_keys.return_value = [
+            SimpleNamespace(key="public-key", key_id="known-kid")
+        ]
+        with (
+            patch("app.services.auth._get_jwks_client", return_value=jwks_client),
+            patch("app.services.auth.get_unverified_header", return_value={"kid": "unknown"}),
+        ):
+            self.assertIsNone(_decode_keycloak_token("signed-token"))
+
+        self.assertEqual(
+            jwks_client.get_signing_keys.call_args_list,
+            [call(refresh=False), call(refresh=True)],
+        )
+
+    def test_malformed_jwks_is_infrastructure_failure(self) -> None:
+        jwks_client = Mock()
+        jwks_client.get_signing_keys.side_effect = PyJWKClientError("invalid JWKS")
+        with (
+            patch("app.services.auth._get_jwks_client", return_value=jwks_client),
+            patch("app.services.auth.get_unverified_header", return_value={"kid": "kid-1"}),
+            self.assertRaises(AuthenticationKeyServiceError),
+        ):
+            _decode_keycloak_token("signed-token")
 
     def test_identity_claim_validation(self) -> None:
         self.assertEqual(
