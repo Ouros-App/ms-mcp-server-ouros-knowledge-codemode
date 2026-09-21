@@ -1,7 +1,7 @@
 import asyncio
 from functools import lru_cache
 
-from jwt import InvalidTokenError, PyJWKClient, decode
+from jwt import InvalidTokenError, PyJWKClient, decode, get_unverified_header
 from jwt.exceptions import (
     PyJWKClientConnectionError,
     PyJWKClientError,
@@ -32,17 +32,30 @@ def _jwks_url() -> str:
     )
 
 
-def _get_signing_key(token: str):
-    client = _get_jwks_client(_jwks_url())
+def _get_signing_keys(client: PyJWKClient, *, refresh: bool = False):
     try:
-        client.get_jwk_set()
-        return client.get_signing_key_from_jwt(token)
+        return client.get_signing_keys(refresh=refresh)
     except PyJWKClientConnectionError:
         raise
-    except PyJWKSetError as exc:
+    except (PyJWKClientError, PyJWKSetError, ValueError, TypeError) as exc:
         raise AuthenticationKeyServiceError("invalid JWKS key set") from exc
-    except (InvalidTokenError, PyJWKClientError, ValueError, TypeError):
+
+
+def _get_signing_key(token: str):
+    try:
+        kid = get_unverified_header(token).get("kid")
+    except InvalidTokenError:
         return None
+    if not isinstance(kid, str) or not kid:
+        return None
+
+    client = _get_jwks_client(_jwks_url())
+    for refresh in (False, True):
+        signing_keys = _get_signing_keys(client, refresh=refresh)
+        for signing_key in signing_keys:
+            if signing_key.key_id == kid:
+                return signing_key
+    return None
 
 
 def _decode_keycloak_token(token: str) -> dict | None:
