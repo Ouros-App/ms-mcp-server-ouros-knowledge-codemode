@@ -2,6 +2,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from jwt.exceptions import PyJWKClientConnectionError
+
 from app.core.config import settings
 from app.services.auth import (
     KeycloakTokenVerifier,
@@ -88,6 +90,16 @@ class AuthTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_token_has_no_static_fallback(self) -> None:
         with patch("app.services.auth._decode_keycloak_token", return_value=None):
             self.assertIsNone(await KeycloakTokenVerifier().verify_token("invalid"))
+
+    async def test_jwks_outage_fails_closed_without_fallback(self) -> None:
+        with (
+            patch(
+                "app.services.auth._decode_keycloak_token",
+                side_effect=PyJWKClientConnectionError("jwks unavailable"),
+            ),
+            self.assertRaises(PyJWKClientConnectionError),
+        ):
+            await KeycloakTokenVerifier().verify_token("signed-token")
 
     @patch("app.services.auth.get_access_token")
     def test_identity_is_derived_only_from_claims(self, get_access_token) -> None:
