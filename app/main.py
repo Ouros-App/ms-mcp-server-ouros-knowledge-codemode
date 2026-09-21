@@ -26,8 +26,8 @@ app = FastAPI(
     description=(
         f"{settings.DESCRIPTION}\n\n"
         "O endpoint MCP está disponível em `/mcp/` via Streamable HTTP. "
-        "As chamadas MCP exigem `Authorization: Bearer <MCP_AUTH_TOKEN>`; "
-        "as tools de contexto recebem `user_type` e `user_id` em cada chamada."
+        "As chamadas MCP exigem um access token JWT do Keycloak em `Authorization: Bearer`; "
+        "a identidade das tools vem exclusivamente dos claims assinados."
     ),
     version=settings.VERSION,
     openapi_tags=OPENAPI_TAGS,

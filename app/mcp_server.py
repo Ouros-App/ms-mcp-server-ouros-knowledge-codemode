@@ -1,10 +1,10 @@
-from typing import Any, Literal
+from typing import Any
 
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 
 from app.core.config import settings
-from app.services.auth import KeycloakOrStaticTokenVerifier, get_authenticated_identity
+from app.services.auth import KeycloakTokenVerifier, get_authenticated_identity
 from app.services.database import (
     get_user_context as get_database_user_context,
 )
@@ -28,10 +28,10 @@ mcp = FastMCP(
     json_response=True,
     streamable_http_path="/",
     auth=AuthSettings(
-        issuer_url=settings.MCP_JWT_ISSUER or settings.MCP_RESOURCE_URL,
+        issuer_url=settings.MCP_JWT_ISSUER,
         resource_server_url=settings.MCP_RESOURCE_URL,
     ),
-    token_verifier=KeycloakOrStaticTokenVerifier(),
+    token_verifier=KeycloakTokenVerifier(),
 )
 
 
@@ -65,33 +65,14 @@ def postgres_status() -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_user_context(
-    user_type: Literal["farm_owner", "company_employee", "admin"], user_id: int
-) -> dict[str, Any]:
-    """Load a user's profile and linked farms for personalized answers.
-
-    Args:
-        user_type: `farm_owner`, `company_employee`, or `admin`.
-        user_id: Positive MIDAS user ID to scope the database queries.
-
-    The identity is validated after the shared MCP token authenticates the client.
-    """
-    user_type, user_id = get_authenticated_identity(user_type, user_id)
+def get_user_context() -> dict[str, Any]:
+    """Load profile and linked farms for the authenticated Keycloak identity."""
+    user_type, user_id = get_authenticated_identity()
     return get_database_user_context(user_type, user_id)
 
 
 @mcp.tool()
-def get_user_farm_data(
-    user_type: Literal["farm_owner", "company_employee", "admin"],
-    user_id: int,
-    limit: int = 20,
-) -> dict[str, Any]:
-    """Load bounded farm data for the requested MIDAS user.
-
-    Args:
-        user_type: `farm_owner`, `company_employee`, or `admin`.
-        user_id: Positive MIDAS user ID to scope the database queries.
-        limit: Maximum number of records per data group, from 1 to 100.
-    """
-    user_type, user_id = get_authenticated_identity(user_type, user_id)
+def get_user_farm_data(limit: int = 20) -> dict[str, Any]:
+    """Load bounded farm data for the authenticated Keycloak identity."""
+    user_type, user_id = get_authenticated_identity()
     return get_database_user_farm_data(user_type, user_id, limit)

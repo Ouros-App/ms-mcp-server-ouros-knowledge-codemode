@@ -13,7 +13,7 @@ Servidor FastAPI com transporte MCP via Streamable HTTP para consultar uma cole�
 - Ferramenta MCP `search_knowledge(query, limit)` para busca semântica.
 - Ferramenta MCP `qdrant_status()` para verificar a coleção configurada.
 - Ferramenta MCP `postgres_status()` para verificar a conexão somente leitura do MIDAS.
-- Ferramentas MCP `get_user_context(user_type, user_id)` e `get_user_farm_data(user_type, user_id, limit)` para contexto personalizado por usuário.
+- Ferramentas MCP `get_user_context()` e `get_user_farm_data(limit)` para contexto personalizado por usuário.
 - CLI `ingest` para extrair, dividir, embeddar e enviar arquivos ao Qdrant.
 - `QdrantVectorStore` e `NVIDIAEmbeddings` da stack LangChain.
 - `.env` local ignorado pelo Git e `.env.example` como modelo de configuração.
@@ -31,7 +31,6 @@ NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 NVIDIA_EMBEDDING_MODEL=nvidia/llama-nemotron-embed-1b-v2
 MIDAS_DATABASE_URL=postgresql://midas_ro:senha@host-neon/segundo_prod?sslmode=require&channel_binding=require
 MIDAS_DB_CONNECT_TIMEOUT=10
-MCP_AUTH_TOKEN=gere-um-token-secreto-com-pelo-menos-32-caracteres
 MCP_RESOURCE_URL=http://localhost:8000/mcp
 MCP_JWT_ISSUER=https://ouros-keycloak.discloud.app/realms/ouros
 MCP_JWT_AUDIENCE=ms-mcp-server-ouros-knowledge-codemode
@@ -44,7 +43,7 @@ No deployment público, sobrescreva `MCP_RESOURCE_URL` com `https://ms-midas-mcp
 
 `MIDAS_DATABASE_URL` deve usar a role `midas_ro` criada pela migration. A role acessa as views do schema `midas`, sem as colunas de senha, e não recebe uma ferramenta de SQL arbitrário. A senha real deve ficar somente no `.env`/secret manager.
 
-O endpoint MCP aceita access tokens do Keycloak no header `Authorization: Bearer <token>`. `MCP_AUTH_TOKEN` permanece apenas como fallback legado durante o rollout. Use um valor aleatório com pelo menos 32 caracteres e mantenha-o somente no `.env`/secret manager. Nos tokens oficiais, a identidade MIDAS vem dos claims assinados `account_type` e `database_id`. Os argumentos `user_type` e `user_id` precisam corresponder aos claims do JWT.
+O endpoint MCP aceita exclusivamente access tokens do Keycloak no header `Authorization: Bearer <token>`. A identidade MIDAS vem dos claims assinados `account_type` e `database_id`; as tools não recebem `user_type` nem `user_id` do cliente.
 
 ## Execução local
 
@@ -111,25 +110,22 @@ O CLI mantém `docs/.qdrant-manifest.json` com o SHA-256, modelo, coleção, par
 
 ## Autenticação MCP
 
-Envie o mesmo valor configurado em `MCP_AUTH_TOKEN` como `Authorization: Bearer <token>` nas chamadas MCP. O token compartilhado autentica o cliente, enquanto `user_type` e `user_id` identificam o usuário consultado. Qualquer cliente que possua esse token pode solicitar outra identidade; para clientes não confiáveis, use tokens individuais com identidade embutida.
+Envie o access token Keycloak do usuário como `Authorization: Bearer <token>`. O servidor valida RS256, issuer, audience, expiração, role e identidade de negócio antes de disponibilizar qualquer tool.
 
 Tools disponíveis:
 
 - `search_knowledge(query, limit=5)`: busca semântica no Qdrant; `limit` entre 1 e 20.
 - `qdrant_status()`: verifica a coleção Qdrant sem chamar a NVIDIA.
 - `postgres_status()`: verifica a conexão PostgreSQL somente leitura do MIDAS.
-- `get_user_context(user_type, user_id)`: retorna perfil, empresas e farms do usuário.
-- `get_user_farm_data(user_type, user_id, limit=20)`: retorna farms, metas, consumos, lotes e dicas; `limit` entre 1 e 100.
+- `get_user_context()`: retorna perfil, empresas e farms do usuário.
+- `get_user_farm_data(limit=20)`: retorna farms, metas, consumos, lotes e dicas; `limit` entre 1 e 100.
 
-Os valores aceitos para `user_type` são `farm_owner`, `company_employee` e `admin`. Exemplos de argumentos para um cliente MCP:
+O `account_type` aceito continua sendo `farm_owner`, `company_employee` ou `admin`, mas esse valor vem exclusivamente do JWT assinado e não é argumento das tools. Exemplos de argumentos para um cliente MCP:
 
 ```json
 {
   "name": "get_user_context",
-  "arguments": {
-    "user_type": "farm_owner",
-    "user_id": 42
-  }
+  "arguments": {}
 }
 ```
 
@@ -137,8 +133,6 @@ Os valores aceitos para `user_type` são `farm_owner`, `company_employee` e `adm
 {
   "name": "get_user_farm_data",
   "arguments": {
-    "user_type": "farm_owner",
-    "user_id": 42,
     "limit": 20
   }
 }
@@ -152,7 +146,7 @@ app/
 ├── core/config.py         # configuração carregada do .env
 ├── cli.py                 # ingestão incremental a partir de ./docs
 ├── mcp_server.py          # ferramentas MCP e transporte HTTP
-├── services/auth.py       # validação do token fixo e identidade do usuário
+├── services/auth.py       # validação do JWT Keycloak e identidade assinada do usuário
 ├── services/database.py   # conexão read-only e contexto por usuário
 ├── services/knowledge.py  # Qdrant + NVIDIA embeddings
 └── main.py                # aplicação FastAPI e montagem do MCP
@@ -176,4 +170,4 @@ MIT. Consulte [LICENSE](LICENSE).
 
 ## Keycloak JWT
 
-Este serviço é um resource server separado do MCP principal e valida tokens com audience `ms-mcp-server-ouros-knowledge-codemode`. A assinatura RS256 é validada pelo JWKS do realm `ouros`, junto de issuer, audience, expiração e identidade de negócio. O token estático continua somente como compatibilidade temporária de rollout.
+Este serviço é um resource server separado do MCP principal e valida tokens com audience `ms-mcp-server-ouros-knowledge-codemode`. A assinatura RS256 é validada pelo JWKS do realm `ouros`, junto de issuer, audience, expiração e identidade de negócio. Não existe fallback por token estático.
